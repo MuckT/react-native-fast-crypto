@@ -1,6 +1,6 @@
 BUILD_DIR ?= build
 
-default: libsecp256k1
+default: libsecp256k1 libssl
 
 $(BUILD_DIR)/%/tasks.mk: recipes/%
 	@ ./run.sh $* write-tasks
