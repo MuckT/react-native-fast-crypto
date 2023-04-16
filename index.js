@@ -14,13 +14,26 @@ async function pbkdf2DeriveAsync(
   if (alg !== 'sha512') {
     throw new Error('ErrorUnsupportedPbkdf2Algorithm: ' + alg)
   }
-  const out = await RNFastCrypto.pbkdf2Sha512(
-    base64.stringify(data),
-    base64.stringify(salt),
-    iterations,
-    size
-  )
-  return base64.parse(out, { out: Buffer.allocUnsafe })
+
+  const isAndroidLessThan8 =
+    Platform.OS === 'android' && parseInt(Platform.Version, 10) < 26;
+
+  if (isAndroidLessThan8) {
+    const dataHex = base16.stringify(data);
+    const saltHex = base16.stringify(salt);
+    const resultHex = await RNFastCrypto.pbkdf2Sha512(
+      dataHex,
+      saltHex,
+      iterations,
+      size
+    );
+    return base16.parse(resultHex, { out: Buffer.allocUnsafe });
+  } else {
+    const data64 = base64.stringify(data);
+    const salt64 = base64.stringify(salt);
+    const out64 = await RNFastCrypto.pbkdf2Sha512(data64, salt64, iterations, size);
+    return base64.parse(out64, { out: Buffer.allocUnsafe });
+  }
 }
 
 export async function scrypt(passwd, salt, N, r, p, size) {

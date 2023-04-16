@@ -7,6 +7,7 @@ import com.facebook.react.bridge.ReactContextBaseJavaModule;
 import com.facebook.react.bridge.ReactMethod;
 import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.PBEKeySpec;
+import android.os.Build;
 
 public class RNFastCryptoModule extends ReactContextBaseJavaModule {
 
@@ -25,6 +26,9 @@ public class RNFastCryptoModule extends ReactContextBaseJavaModule {
   public native String secp256k1EcPubkeyTweakAddJNI(
       String publicKeyHex, String tweakHex, int compressed);
 
+  public native String pbkdf2Sha512JNI(
+      String passHex, String saltHex, int iterations, int outputBytes);
+
   private final ReactApplicationContext reactContext;
 
   public RNFastCryptoModule(ReactApplicationContext reactContext) {
@@ -39,20 +43,31 @@ public class RNFastCryptoModule extends ReactContextBaseJavaModule {
 
   @ReactMethod
   public void pbkdf2Sha512(
-      String data64, String salt64, int iterations, int keyLength, Promise promise) {
-    try {
-      byte[] data = Base64.decode(data64, Base64.DEFAULT);
-      byte[] salt = Base64.decode(salt64, Base64.DEFAULT);
-
-      // Pack our arguments into an object:
-      char[] dataChars = new String(data, "UTF-8").toCharArray();
-      PBEKeySpec keySpec = new PBEKeySpec(dataChars, salt, iterations, 8 * keyLength);
-
-      SecretKeyFactory secretKeyFactory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA512");
-      byte[] out = secretKeyFactory.generateSecret(keySpec).getEncoded();
-      promise.resolve(Base64.encodeToString(out, Base64.NO_WRAP));
-    } catch (Exception e) {
-      promise.reject(e);
+      String data, String salt, int iterations, int keyLength, Promise promise) {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+    // Use the native implementation for Android versions earlier than 8.0
+      try {
+        String out = pbkdf2Sha512JNI(data, salt, iterations, keyLength);
+        promise.resolve(out);
+      } catch (Exception e) {
+        promise.reject("Err", e);
+      }
+    } else {
+      // Use the Java implementation for Android versions 8.0 or later
+      try {
+        byte[] dataBytes = Base64.decode(data, Base64.DEFAULT);
+        byte[] saltBytes = Base64.decode(salt, Base64.DEFAULT);
+            
+        char[] dataChars = new String(dataBytes, "UTF-8").toCharArray();
+        PBEKeySpec keySpec = new PBEKeySpec(dataChars, saltBytes, iterations, keyLength);
+            
+        SecretKeyFactory secretKeyFactory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA512");
+        byte[] out = secretKeyFactory.generateSecret(keySpec).getEncoded();
+            
+        promise.resolve(Base64.encodeToString(out, Base64.NO_WRAP));
+      } catch (Exception e) {
+        promise.reject(e);
+      }
     }
   }
 
